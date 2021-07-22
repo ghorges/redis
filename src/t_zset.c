@@ -76,6 +76,7 @@ zskiplistNode *zslCreateNode(int level, double score, sds ele) {
     return zn;
 }
 
+// 创建一个 zskiplist
 /* Create a new skiplist. */
 zskiplist *zslCreate(void) {
     int j;
@@ -84,7 +85,9 @@ zskiplist *zslCreate(void) {
     zsl = zmalloc(sizeof(*zsl));
     zsl->level = 1;
     zsl->length = 0;
+    // ZSKIPLIST_MAXLEVEL 默认为 32 层，最优可以在存储 2^32 * 2 - 1的数据时，依然高效
     zsl->header = zslCreateNode(ZSKIPLIST_MAXLEVEL,0,NULL);
+    // 为什么不在初始化的时候就清零？
     for (j = 0; j < ZSKIPLIST_MAXLEVEL; j++) {
         zsl->header->level[j].forward = NULL;
         zsl->header->level[j].span = 0;
@@ -126,6 +129,7 @@ int zslRandomLevel(void) {
     return (level<ZSKIPLIST_MAXLEVEL) ? level : ZSKIPLIST_MAXLEVEL;
 }
 
+// 插入一个节点，确保 score 之前不会存在过
 /* Insert a new node in the skiplist. Assumes the element does not already
  * exist (up to the caller to enforce that). The skiplist takes ownership
  * of the passed SDS string 'ele'. */
@@ -134,27 +138,33 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     unsigned long rank[ZSKIPLIST_MAXLEVEL];
     int i, level;
 
+    // 这个是看 score 精度的？
     serverAssert(!isnan(score));
     x = zsl->header;
+    // 从最高的 level 开始遍历
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
         rank[i] = i == (zsl->level-1) ? 0 : rank[i+1];
         while (x->level[i].forward &&
                 (x->level[i].forward->score < score ||
                     (x->level[i].forward->score == score &&
+                    // sdscmp 就是比较这两个值是否一样，如果一样返回 0
                     sdscmp(x->level[i].forward->ele,ele) < 0)))
         {
             rank[i] += x->level[i].span;
             x = x->level[i].forward;
         }
+        // 这里存储的都是需要更新的节点，也就是每层当前插入节点前的第一个节点
         update[i] = x;
     }
     /* we assume the element is not already inside, since we allow duplicated
      * scores, reinserting the same element should never happen since the
      * caller of zslInsert() should test in the hash table if the element is
      * already inside or not. */
+    // 通过抛掷硬币的方式获取一个随机的高度，后面的 random 函数没看懂，但肯定是个随机数
     level = zslRandomLevel();
     if (level > zsl->level) {
+        // 这里直接提到的 level 的高度
         for (i = zsl->level; i < level; i++) {
             rank[i] = 0;
             update[i] = zsl->header;
@@ -164,6 +174,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     }
     x = zslCreateNode(level,score,ele);
     for (i = 0; i < level; i++) {
+        // 基本的链表操作
         x->level[i].forward = update[i]->level[i].forward;
         update[i]->level[i].forward = x;
 
@@ -181,6 +192,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     if (x->level[0].forward)
         x->level[0].forward->backward = x;
     else
+        // tail 开始设置为 null
         zsl->tail = x;
     zsl->length++;
     return x;

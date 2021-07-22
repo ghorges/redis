@@ -1044,20 +1044,32 @@ struct sharedObjectsStruct {
     sds minstring, maxstring;
 };
 
+// zskiplistNode 是跳跃表的每一个节点
 /* ZSETs use a specialized version of Skiplists */
 typedef struct zskiplistNode {
+    // ele 是存放信息的指针
+    // typedef char *sds;
     sds ele;
+    // score 是存放信息的计算出得分数
     double score;
+    // 前一个节点
     struct zskiplistNode *backward;
+    // 这个节点上面的节点
     struct zskiplistLevel {
+        // 指向这个节点的下一个节点
         struct zskiplistNode *forward;
+        // 到下一个节点的间距
         unsigned long span;
     } level[];
 } zskiplistNode;
 
+// skiplist 的总信息
 typedef struct zskiplist {
+    // 最前面的和最后面的
     struct zskiplistNode *header, *tail;
+    // 当前个数
     unsigned long length;
+    // 当前高度
     int level;
 } zskiplist;
 
