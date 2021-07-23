@@ -35,6 +35,7 @@
 #include "latency.h"
 #include "atomicvar.h"
 #include "mt19937-64.h"
+#include "dict.h"
 
 #include <time.h>
 #include <signal.h>

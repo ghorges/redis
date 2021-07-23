@@ -1073,6 +1073,7 @@ typedef struct zskiplist {
     int level;
 } zskiplist;
 
+// 一个词典和一个 list
 typedef struct zset {
     dict *dict;
     zskiplist *zsl;

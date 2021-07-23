@@ -139,6 +139,7 @@ int dictResize(dict *d)
     return dictExpand(d, minimal);
 }
 
+// 扩容，如果的确需要扩容并且不是新创建的就会开始迁移
 /* Expand or create the hash table,
  * when malloc_failed is non-NULL, it'll avoid panic if malloc fails (in which case it'll be set to 1).
  * Returns DICT_OK if expand was performed, and DICT_ERR if skipped. */
@@ -152,8 +153,10 @@ int _dictExpand(dict *d, unsigned long size, int* malloc_failed)
         return DICT_ERR;
 
     dictht n; /* the new hash table */
+    // 这里的 realsize 表示需要几个桶
     unsigned long realsize = _dictNextPower(size);
 
+    // 表示没扩容，返回 dict_err
     /* Rehashing to the same table size is not useful. */
     if (realsize == d->ht[0].size) return DICT_ERR;
 
@@ -177,6 +180,7 @@ int _dictExpand(dict *d, unsigned long size, int* malloc_failed)
         return DICT_OK;
     }
 
+    // 这里其实相当于开始迁移了
     /* Prepare a second hash table for incremental rehashing */
     d->ht[1] = n;
     d->rehashidx = 0;
@@ -204,7 +208,13 @@ int dictTryExpand(dict *d, unsigned long size) {
  * guaranteed that this function will rehash even a single bucket, since it
  * will visit at max N*10 empty buckets in total, otherwise the amount of
  * work it does would be unbound and the function may block for a long time. */
+/* 执行 N 步增量重新散列。如果仍有键可以从旧哈希表移动到新哈希表，则返回 1，否则返回 0。
+请注意，重新散列步骤包括将一个桶（在我们使用链接时可能有多个键）从旧的哈希表移动到新的哈希表，
+但是由于哈希表的一部分可能由空格组成，因此不能保证这个函数甚至会重新散列单个桶，
+因为它总共最多访问 N*10 个空桶，否则它所做的工作量将是未绑定的，并且函数可能会阻塞很长时间。 */
+// 这个 n 代表的是转换 n 个桶
 int dictRehash(dict *d, int n) {
+    // 要访问的最大空桶数。
     int empty_visits = n*10; /* Max number of empty buckets to visit. */
     if (!dictIsRehashing(d)) return 0;
 
@@ -216,14 +226,18 @@ int dictRehash(dict *d, int n) {
         assert(d->ht[0].size > (unsigned long)d->rehashidx);
         while(d->ht[0].table[d->rehashidx] == NULL) {
             d->rehashidx++;
+            // 如果超过最大访问的空桶了，就先不迁移了，等下一次再迁移
             if (--empty_visits == 0) return 1;
         }
         de = d->ht[0].table[d->rehashidx];
         /* Move all the keys in this bucket from the old to the new hash HT */
+        // 将这个桶中所有成员都迁移过去
         while(de) {
             uint64_t h;
 
             nextde = de->next;
+            // 这里确实是使用了之前在 bigcache 学到的方法，这个方法效率高很多
+            // 即：余数 = key & (2 ^ n - 1) 
             /* Get the index in the new hash table */
             h = dictHashKey(d, de->key) & d->ht[1].sizemask;
             de->next = d->ht[1].table[h];
@@ -237,6 +251,7 @@ int dictRehash(dict *d, int n) {
     }
 
     /* Check if we already rehashed the whole table... */
+    // 如果已经 rehash 结束
     if (d->ht[0].used == 0) {
         zfree(d->ht[0].table);
         d->ht[0] = d->ht[1];
@@ -290,6 +305,7 @@ int dictAdd(dict *d, void *key, void *val)
     dictEntry *entry = dictAddRaw(d,key,NULL);
 
     if (!entry) return DICT_ERR;
+    // 这里是通过回调存入的 val
     dictSetVal(d, entry, val);
     return DICT_OK;
 }
@@ -318,10 +334,12 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
     dictEntry *entry;
     dictht *ht;
 
+    // 如果正在 rehash 则再走一步
     if (dictIsRehashing(d)) _dictRehashStep(d);
 
     /* Get the index of the new element, or -1 if
      * the element already exists. */
+    // 算出索引，dictHashKey 是返回这个 key 的 int64 哈希值
     if ((index = _dictKeyIndex(d, key, dictHashKey(d,key), existing)) == -1)
         return NULL;
 
@@ -329,8 +347,10 @@ dictEntry *dictAddRaw(dict *d, void *key, dictEntry **existing)
      * Insert the element in top, with the assumption that in a database
      * system it is more likely that recently added entries are accessed
      * more frequently. */
+    // 判断需要是否再扩容，如果扩容存1，否则存0
     ht = dictIsRehashing(d) ? &d->ht[1] : &d->ht[0];
     entry = zmalloc(sizeof(*entry));
+    // 头插法，插到最前面，这个仅仅是将 key 插入 hash 中，还没有插入 value
     entry->next = ht->table[index];
     ht->table[index] = entry;
     ht->used++;
@@ -983,6 +1003,7 @@ static int _dictExpandIfNeeded(dict *d)
     /* Incremental rehashing already in progress. Return. */
     if (dictIsRehashing(d)) return DICT_OK;
 
+    // 如果为空的时候，初始化 4 个桶
     /* If the hash table is empty expand it to the initial size. */
     if (d->ht[0].size == 0) return dictExpand(d, DICT_HT_INITIAL_SIZE);
 
@@ -990,6 +1011,7 @@ static int _dictExpandIfNeeded(dict *d)
      * table (global setting) or we should avoid it but the ratio between
      * elements/buckets is over the "safe" threshold, we resize doubling
      * the number of buckets. */
+    // 如果现在已经使用的量比桶已经大 5 倍了并且自定义的回调函数允许，则开始迁移
     if (d->ht[0].used >= d->ht[0].size &&
         (dict_can_resize ||
          d->ht[0].used/d->ht[0].size > dict_force_resize_ratio) &&
@@ -1000,6 +1022,8 @@ static int _dictExpandIfNeeded(dict *d)
     return DICT_OK;
 }
 
+// 二倍扩容，这里是算要几个桶来装
+// 其实说白了，就是找到大于当前数量的最小的2^n 次方
 /* Our hash table capability is a power of two */
 static unsigned long _dictNextPower(unsigned long size)
 {
@@ -1027,19 +1051,25 @@ static long _dictKeyIndex(dict *d, const void *key, uint64_t hash, dictEntry **e
     if (existing) *existing = NULL;
 
     /* Expand the hash table if needed */
+    // 二倍扩容策略
     if (_dictExpandIfNeeded(d) == DICT_ERR)
         return -1;
+    // 把两个都需要比较一下，因为可能存在 rehash 的情况
     for (table = 0; table <= 1; table++) {
+        // 计算应该放的位置，使用 bigcache 的求余数做法，速度快
         idx = hash & d->ht[table].sizemask;
         /* Search if this slot does not already contain the given key */
         he = d->ht[table].table[idx];
         while(he) {
+            // 比对 key 和 value，如果存在返回 -1
             if (key==he->key || dictCompareKeys(d, key, he->key)) {
                 if (existing) *existing = he;
                 return -1;
             }
+            // 从这里其实可看出是通过拉链法存储的冲突
             he = he->next;
         }
+        // 如果没有 rehash 直接 break，写的妙
         if (!dictIsRehashing(d)) break;
     }
     return idx;
@@ -1204,6 +1234,7 @@ char *stringFromLongLong(long long value) {
     return s;
 }
 
+// 初始化的回调函数
 dictType BenchmarkDictType = {
     hashCallback,
     NULL,

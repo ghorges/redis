@@ -138,12 +138,13 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     unsigned long rank[ZSKIPLIST_MAXLEVEL];
     int i, level;
 
-    // 这个是看 score 精度的？
+    // 这个是判断 score 精度的？
     serverAssert(!isnan(score));
     x = zsl->header;
     // 从最高的 level 开始遍历
     for (i = zsl->level-1; i >= 0; i--) {
         /* store rank that is crossed to reach the insert position */
+        // rank 记录的是到每一层最后一个节点的总距离
         rank[i] = i == (zsl->level-1) ? 0 : rank[i+1];
         while (x->level[i].forward &&
                 (x->level[i].forward->score < score ||
@@ -166,6 +167,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     if (level > zsl->level) {
         // 这里直接提到的 level 的高度
         for (i = zsl->level; i < level; i++) {
+            // 新层，所以前面为头节点，rank 为 0
             rank[i] = 0;
             update[i] = zsl->header;
             update[i]->level[i].span = zsl->length;
@@ -179,7 +181,10 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
         update[i]->level[i].forward = x;
 
         /* update span covered by update[i] as x is inserted here */
+        // 算的是插入节点离后面的距离，太烧脑了
         x->level[i].span = update[i]->level[i].span - (rank[0] - rank[i]);
+        // 这个是修改前面的距离，+1是因为 rank[0] - rank[i] 为插入节点前的最底层
+        // 节点减去上面节点的距离，所以需要 +1
         update[i]->level[i].span = (rank[0] - rank[i]) + 1;
     }
 
@@ -192,7 +197,7 @@ zskiplistNode *zslInsert(zskiplist *zsl, double score, sds ele) {
     if (x->level[0].forward)
         x->level[0].forward->backward = x;
     else
-        // tail 开始设置为 null
+        // tail 开始设置为 null，所以这边需要改
         zsl->tail = x;
     zsl->length++;
     return x;

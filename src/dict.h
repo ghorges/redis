@@ -47,15 +47,18 @@
 /* Unused arguments generate annoying warnings... */
 #define DICT_NOTUSED(V) ((void) V)
 
+// 每一个 entry
 typedef struct dictEntry {
     void *key;
+    // 如果东西多，存入 val 就可以了
     union {
         void *val;
         uint64_t u64;
         int64_t s64;
         double d;
     } v;
-    struct dictEntry *next;
+    // 指向下一个 hash 的节点
+    struct dictEntry *next; 
 } dictEntry;
 
 typedef struct dictType {
@@ -71,6 +74,7 @@ typedef struct dictType {
 /* This is our hash table structure. Every dictionary has two of this as we
  * implement incremental rehashing, for the old to the new table. */
 typedef struct dictht {
+    // 一维数组，数组大小代表的是多少个不同的 key，目前来看应该是 2^n
     dictEntry **table;
     unsigned long size;
     unsigned long sizemask;
@@ -81,7 +85,10 @@ typedef struct dict {
     dictType *type;
     void *privdata;
     dictht ht[2];
+    // 如果 rehashidx == -1，则不会进行重新哈希
+    // 反之如果不是 -1 表示正在哈希
     long rehashidx; /* rehashing not in progress if rehashidx == -1 */
+    // 如果 >0 重新散列被暂停（<0 表示编码错误）
     int16_t pauserehash; /* If >0 rehashing is paused (<0 indicates coding error) */
 } dict;
 
@@ -102,6 +109,7 @@ typedef void (dictScanFunction)(void *privdata, const dictEntry *de);
 typedef void (dictScanBucketFunction)(void *privdata, dictEntry **bucketref);
 
 /* This is the initial size of every hash table */
+// 初始化的 hash table 数目，也就是 4 个 table
 #define DICT_HT_INITIAL_SIZE     4
 
 /* ------------------------------- Macros ------------------------------------*/
@@ -141,6 +149,7 @@ typedef void (dictScanBucketFunction)(void *privdata, dictEntry **bucketref);
         (d)->type->keyCompare((d)->privdata, key1, key2) : \
         (key1) == (key2))
 
+// 求 hash 值
 #define dictHashKey(d, key) (d)->type->hashFunction(key)
 #define dictGetKey(he) ((he)->key)
 #define dictGetVal(he) ((he)->v.val)
