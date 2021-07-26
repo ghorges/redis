@@ -50,6 +50,7 @@ int zslValueLteMax(double value, zrangespec *spec);
  * geoArray implementation
  * ==================================================================== */
 
+// 创建一个新的地图
 /* Create a new array of geoPoints. */
 geoArray *geoArrayCreate(void) {
     geoArray *ga = zmalloc(sizeof(*ga));
