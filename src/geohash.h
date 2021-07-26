@@ -64,10 +64,13 @@ typedef enum {
 } GeoDirection;
 
 typedef struct {
+    // bits 代表转换的一维值
     uint64_t bits;
+    // step 表示乘10^step，将小数点后的值取整
     uint8_t step;
 } GeoHashBits;
 
+// 范围，成对出现，分别为经度和维度
 typedef struct {
     double min;
     double max;
