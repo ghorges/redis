@@ -1073,6 +1073,7 @@ unsigned char *zzlInsertAt(unsigned char *zl, unsigned char *eptr, sds ele, doub
 
 /* Insert (element,score) pair in ziplist. This function assumes the element is
  * not yet present in the list. */
+/* 在 ziplist 中插入 (element,score) 对。 此函数假定元素尚未出现在列表中。 */
 unsigned char *zzlInsert(unsigned char *zl, sds ele, double score) {
     unsigned char *eptr = ziplistIndex(zl,0), *sptr;
     double s;
@@ -1351,6 +1352,7 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
         return 0;
     }
 
+    // 这个先放着 这个肯定是压缩版本的
     /* Update the sorted set according to its encoding. */
     if (zobj->encoding == OBJ_ENCODING_ZIPLIST) {
         unsigned char *eptr;
@@ -1444,6 +1446,8 @@ int zsetAdd(robj *zobj, double score, sds ele, int in_flags, int *out_flags, dou
             return 1;
         } else if (!xx) {
             ele = sdsdup(ele);
+            // 这里相当于将信息存在 skiplist 和 dict 中
+            // 都存了，但是存的是指针，所以不占内存
             znode = zslInsert(zs->zsl,score,ele);
             serverAssert(dictAdd(zs->dict,ele,&znode->score) == DICT_OK);
             *out_flags |= ZADD_OUT_ADDED;
@@ -1811,9 +1815,11 @@ void zaddGenericCommand(client *c, int flags) {
         } else {
             zobj = createZsetZiplistObject();
         }
+        // 这里应该是将 zobj 插入到 c->db 中
         dbAdd(c->db,key,zobj);
     }
 
+    // 在这里放入
     for (j = 0; j < elements; j++) {
         double newscore;
         score = scores[j];
