@@ -44,6 +44,9 @@ int zslValueLteMax(double value, zrangespec *spec);
  *   - geoadd - add coordinates for value to geoset
  *   - georadius - search radius by coordinates in geoset
  *   - georadiusbymember - search radius based on geoset member position
+ *   - geoadd - 将坐标值添加到 geoset
+ *   - georadius - 通过 geoset 中的坐标搜索半径
+ *   - georadiusbymember - 基于 geoset 成员位置的搜索半径
  * ==================================================================== */
 
 /* ====================================================================
