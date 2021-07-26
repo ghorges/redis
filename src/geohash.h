@@ -93,6 +93,7 @@ typedef struct {
     GeoHashBits south_west;
 } GeoHashNeighbors;
 
+// 查找的
 #define CIRCULAR_TYPE 1
 #define RECTANGLE_TYPE 2
 typedef struct {

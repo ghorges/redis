@@ -503,6 +503,7 @@ void geoaddCommand(client *c) {
 #define SORT_ASC 1
 #define SORT_DESC 2
 
+// 搜索坐标
 #define RADIUS_COORDS (1<<0)    /* Search around coordinates. */
 #define RADIUS_MEMBER (1<<1)    /* Search around member. */
 #define RADIUS_NOSTORE (1<<2)   /* Do not accept STORE/STOREDIST option. */

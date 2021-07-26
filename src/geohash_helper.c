@@ -216,6 +216,7 @@ GeoHashFix52Bits geohashAlign52Bits(const GeoHashBits hash) {
     return bits;
 }
 
+// 计算两点之间的距离
 /* Calculate distance using haversine great circle distance formula. */
 double geohashGetDistance(double lon1d, double lat1d, double lon2d, double lat2d) {
     double lat1r, lon1r, lat2r, lon2r, u, v;
