@@ -351,6 +351,7 @@ zskiplistNode *zslFirstInRange(zskiplist *zsl, zrangespec *range) {
     /* If everything is out of range, return early. */
     if (!zslIsInRange(zsl,range)) return NULL;
 
+    // 这个就是 skiplist 的搜索而已，找第一个
     x = zsl->header;
     for (i = zsl->level-1; i >= 0; i--) {
         /* Go forward while *OUT* of range. */

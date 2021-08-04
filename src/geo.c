@@ -92,11 +92,13 @@ int decodeGeohash(double bits, double *xy) {
     return geohashDecodeToLongLatWGS84(hash, xy);
 }
 
+// 这一步就是看参数是否合理
 /* Input Argument Helper */
 /* Take a pointer to the latitude arg then use the next arg for longitude.
  * On parse error C_ERR is returned, otherwise C_OK. */
 int extractLongLatOrReply(client *c, robj **argv, double *xy) {
     int i;
+    // 这里把经纬度赋值了
     for (i = 0; i < 2; i++) {
         if (getDoubleFromObjectOrReply(c, argv[i], xy + i, NULL) !=
             C_OK) {
@@ -163,6 +165,7 @@ int extractDistanceOrReply(client *c, robj **argv,
         addReplyError(c,"radius cannot be negative");
         return C_ERR;
     }
+    // 给要查找的半径赋值
     if (radius) *radius = distance;
 
     double to_meters = extractUnitOrReply(c,argv[1]);
@@ -170,6 +173,7 @@ int extractDistanceOrReply(client *c, robj **argv,
         return C_ERR;
     }
 
+    // 这个是精度，km m 等等
     if (conversion) *conversion = to_meters;
     return C_OK;
 }
@@ -293,6 +297,7 @@ int geoGetPointsInRange(robj *zobj, double min, double max, GeoShape *shape, geo
             if (ga->used && limit && ga->used >= limit) break;
             zzlNext(zl, &eptr, &sptr);
         }
+        // 看这个，用 skiplist 
     } else if (zobj->encoding == OBJ_ENCODING_SKIPLIST) {
         zset *zs = zobj->ptr;
         zskiplist *zsl = zs->zsl;
@@ -303,6 +308,7 @@ int geoGetPointsInRange(robj *zobj, double min, double max, GeoShape *shape, geo
             return 0;
         }
 
+        // 将后面的都拿出来，因为底层是一个双向链表
         while (ln) {
             sds ele = ln->ele;
             /* Abort when the node is no longer in range. */
@@ -364,6 +370,7 @@ int membersOfAllNeighbors(robj *zobj, const GeoHashRadius *n, GeoShape *shape, g
     unsigned int i, count = 0, last_processed = 0;
     int debugmsg = 0;
 
+    // 对这 9 个位置进行搜寻，也就是 geohash 的 9 个区域
     neighbors[0] = n->hash;
     neighbors[1] = n->neighbors.north;
     neighbors[2] = n->neighbors.south;
@@ -410,6 +417,8 @@ int membersOfAllNeighbors(robj *zobj, const GeoHashRadius *n, GeoShape *shape, g
                 D("Skipping processing of %d, same as previous\n",i);
             continue;
         }
+        // 相当于，如果超过限制了，后面的就不会搜索了，哪怕后面区块有离得近的
+        // 提升速率
         if (ga->used && limit && ga->used >= limit) break;
         count += membersOfGeoHashBox(zobj, neighbors[i], ga, shape, limit);
         last_processed = i;
@@ -505,6 +514,7 @@ void geoaddCommand(client *c) {
 
 // 搜索坐标
 #define RADIUS_COORDS (1<<0)    /* Search around coordinates. */
+// 搜索成员
 #define RADIUS_MEMBER (1<<1)    /* Search around member. */
 #define RADIUS_NOSTORE (1<<2)   /* Do not accept STORE/STOREDIST option. */
 #define GEOSEARCH (1<<3)        /* GEOSEARCH command variant (different arguments supported) */
@@ -534,6 +544,7 @@ void georadiusGeneric(client *c, int srcKeyIndex, int flags) {
     GeoShape shape = {0};
     if (flags & RADIUS_COORDS) {
         base_args = 6;
+        // 圆形查找
         shape.type = CIRCULAR_TYPE;
         if (extractLongLatOrReply(c, c->argv + 2, shape.xy) == C_ERR) return;
         if (extractDistanceOrReply(c, c->argv+base_args-2, &shape.conversion, &shape.t.radius) != C_OK) return;
@@ -561,6 +572,7 @@ void georadiusGeneric(client *c, int srcKeyIndex, int flags) {
     int withdist = 0, withhash = 0, withcoords = 0;
     int frommember = 0, fromloc = 0, byradius = 0, bybox = 0;
     int sort = SORT_NONE;
+    // any=1 意味着有限的搜索，一旦找到足够的结果就停止。
     int any = 0; /* any=1 means a limited search, stop as soon as enough results were found. */
     long long count = 0;  /* Max number of results to return. 0 means unlimited. */
     if (c->argc > base_args) {
@@ -681,17 +693,20 @@ void georadiusGeneric(client *c, int srcKeyIndex, int flags) {
         return;
     }
 
+    // 默认按 asc 进行排序，asc 表示正序，desc 表示倒序
     /* COUNT without ordering does not make much sense (we need to
      * sort in order to return the closest N entries),
      * force ASC ordering if COUNT was specified but no sorting was
      * requested. Note that this is not needed for ANY option. */
     if (count != 0 && sort == SORT_NONE && !any) sort = SORT_ASC;
 
+    // 这里就是获取邻居的搜索框
     /* Get all neighbor geohash boxes for our radius search */
     GeoHashRadius georadius = geohashCalculateAreasByShapeWGS84(&shape);
 
     /* Search the zset for all matching points */
     geoArray *ga = geoArrayCreate();
+    // 最后一个参数是需要多少个， 0 表示没限制，都返回
     membersOfAllNeighbors(zobj, &georadius, &shape, ga, any ? count : 0);
 
     /* If no matching results, the user gets an empty reply. */

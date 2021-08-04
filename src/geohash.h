@@ -63,6 +63,7 @@ typedef enum {
     GEOHASH_NORT_EAST
 } GeoDirection;
 
+// geohash 算法：https://zhuanlan.zhihu.com/p/38639394
 typedef struct {
     // bits 代表转换的一维值
     uint64_t bits;
@@ -70,7 +71,8 @@ typedef struct {
     uint8_t step;
 } GeoHashBits;
 
-// 范围，成对出现，分别为经度和维度
+// 经度和纬度的范围
+// 成对出现，分别为经度和维度
 typedef struct {
     double min;
     double max;
@@ -99,7 +101,7 @@ typedef struct {
 typedef struct {
     int type; /* search type */
     double xy[2]; /* search center point, xy[0]: lon, xy[1]: lat */
-    double conversion; /* km: 1000 */
+    double conversion; /* km: 1000 精度 */
     double bounds[4]; /* bounds[0]: min_lon, bounds[1]: min_lat
                        * bounds[2]: max_lon, bounds[3]: max_lat */
     union {

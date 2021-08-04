@@ -175,9 +175,17 @@ int geohashDecode(const GeoHashRange long_range, const GeoHashRange lat_range,
     double lat_scale = lat_range.max - lat_range.min;
     double long_scale = long_range.max - long_range.min;
 
+    // 分开经纬度，deinterleave64 返回的是 return x | (y << 32);
+    // 所以通过 uint32_t 就可以分开
     uint32_t ilato = hash_sep;       /* get lat part of deinterleaved hash */
     uint32_t ilono = hash_sep >> 32; /* shift over to get long part of hash */
 
+    // 这里是获取将这个点夹在中间的位置
+    /* ---------------------------
+       | *   |        |           |
+       |     |        |           |
+       ---------------------------
+       现在点在第一个位置。这个方法是不断二分，将这个点夹逼到一个很小的位置 */
     /* divide by 2**step.
      * Then, for 0-1 coordinate, multiply times scale and add
        to the min to get the absolute coordinate. */
@@ -203,6 +211,7 @@ int geohashDecodeWGS84(const GeoHashBits hash, GeoHashArea *area) {
     return geohashDecodeType(hash, area);
 }
 
+// 将夹逼的点还原成原来的点
 int geohashDecodeAreaToLongLat(const GeoHashArea *area, double *xy) {
     if (!xy) return 0;
     xy[0] = (area->longitude.min + area->longitude.max) / 2;
@@ -263,6 +272,8 @@ static void geohash_move_y(GeoHashBits *hash, int8_t d) {
     hash->bits = (x | y);
 }
 
+// 这个应该是通过 hash 匹配八个区域的，因为 hash 可能会存在边界问题
+// 详见：https://zhuanlan.zhihu.com/p/38639394
 void geohashNeighbors(const GeoHashBits *hash, GeoHashNeighbors *neighbors) {
     neighbors->east = *hash;
     neighbors->west = *hash;

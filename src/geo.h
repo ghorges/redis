@@ -14,6 +14,7 @@ typedef struct geoPoint {
     char *member;
 } geoPoint;
 
+// geo 数组
 typedef struct geoArray {
     struct geoPoint *array;
     size_t buckets;
